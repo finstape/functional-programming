@@ -1,6 +1,7 @@
 import os
 import cv2
 import time
+import logging
 import threading
 import customtkinter as ctk
 from tkinter import filedialog
@@ -37,7 +38,7 @@ class ImageAnalysis:
         cv2.imwrite(os.path.join("processed_images", os.path.basename(self.image_path.replace('.jpg', ' (out).jpg'))), self.image)
         cv2.destroyAllWindows()
 
-    def print_statistics(self, processing_time: float) -> str:
+    def print_statistics(self, processing_time: float) -> None:
         """ Output of collected statistics """
         statistics = (
             f"{self.image_path}\n"
@@ -48,7 +49,15 @@ class ImageAnalysis:
             f"Processing time: {processing_time:.2f} seconds\n"
         )
 
-        return statistics
+        """ Logging statistics """
+        log_file_path = self.image_path.replace('images', 'logs')[:-3] + "log"
+        logger = logging.getLogger(log_file_path)
+        logger.setLevel(logging.DEBUG)
+        file_handler = logging.FileHandler(log_file_path, mode="w")
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        logger.debug(statistics)
 
 
 class ImageAnalysisApp:
@@ -62,7 +71,6 @@ class ImageAnalysisApp:
         self.images_count = 0
         self.input_folder = ""
         self.output_folder = ""
-        self.output_statistics = ""
         self.progress_bar = None
         self.analysis_thread = None
         self.process_button = None
@@ -138,8 +146,6 @@ class ImageAnalysisApp:
             thread.join()
 
         self.progress_bar["value"] = 100
-        messagebox.showinfo("Info", f"{self.output_statistics}")
-        self.output_statistics = ""
 
     def process_image(self, file: str) -> None:
         start_time = time.time()
@@ -147,7 +153,7 @@ class ImageAnalysisApp:
         image = ImageAnalysis(full_path)
         image.analyze()
         end_time = time.time()
-        self.output_statistics += image.print_statistics(end_time - start_time)
+        image.print_statistics(end_time - start_time)
         self.progress_bar["value"] += 1 / self.images_count * 100
         self.root.update_idletasks()
 
