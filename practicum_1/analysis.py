@@ -35,7 +35,7 @@ class ImageAnalysis:
                 cv2.drawContours(self.image, [contour], -1, (0, 0, 255), 2)
                 self.stars_count += 1
 
-        cv2.imwrite(os.path.join("processed_images", os.path.basename(self.image_path.replace('.jpg', ' (out).jpg'))), self.image)
+        cv2.imwrite(os.path.join("processed_images", os.path.basename(self.image_path.replace(".jpg", " (out).jpg"))), self.image)
         cv2.destroyAllWindows()
 
     def print_statistics(self, processing_time: float) -> None:
@@ -50,11 +50,11 @@ class ImageAnalysis:
         )
 
         """ Logging statistics """
-        log_file_path = self.image_path.replace('images', 'logs')[:-3] + "log"
+        log_file_path = self.image_path.replace("images", "logs")[:-3] + "log"
         logger = logging.getLogger(log_file_path)
         logger.setLevel(logging.DEBUG)
         file_handler = logging.FileHandler(log_file_path, mode="w")
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         logger.debug(statistics)
