@@ -1,6 +1,7 @@
 import os
 import cv2
 import time
+import timeit
 import logging
 import threading
 import customtkinter as ctk
@@ -14,9 +15,80 @@ class ImageAnalysis:
         self.planets_count = 0
         self.image_path = image_path
         self.image = cv2.imread(image_path)
+        self.images = [self.image]
 
         if self.image is None:
             raise ValueError("Failed to upload image!")
+
+        if self.image.shape[0] > 6500 and self.image.shape[1] > 6500:
+            self.images = []
+            height, width = self.image.shape[0],  self.image.shape[1]
+
+            for i in range(0, height, 6500):
+                for j in range(0, width, 6500):
+                    if height - i < 6500 or width - j < 6500:
+                        continue
+                    HEIGHT = i + 6500 if height - i - 6500 >= 6500 else height
+                    WIDTH = j + 6500 if width - j - 6500 >= 6500 else width
+                    self.images.append(self.image[i:HEIGHT, j:WIDTH])
+
+    def analyze_cropped(self, image_chunk: cv2, number: int) -> None:
+        """ Grayscale conversion, binarization, and contour search for a cropped image chunk """
+        start_time = timeit.default_timer()
+        gray_image = cv2.cvtColor(image_chunk, cv2.COLOR_BGR2GRAY)
+        _, binary_image = cv2.threshold(gray_image, 211, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        planets_count, stars_count = 0, 0
+
+        """ Classification of objects and allocation """
+        for _, contour in enumerate(contours):
+            if cv2.contourArea(contour) < 1:
+                """ Planets are circled in red """
+                cv2.drawContours(image_chunk, [contour], -1, (0, 255, 0), 2)
+                planets_count += 1
+            else:
+                """ Stars are circled in green """
+                cv2.drawContours(image_chunk, [contour], -1, (0, 0, 255), 2)
+                stars_count += 1
+
+        cv2.imwrite(os.path.join("processed_images", os.path.basename(self.image_path.replace(".jpg", f" (out)_{number}.jpg"))), image_chunk)
+        self.stars_count += stars_count
+        self.planets_count += planets_count
+        processing_time = timeit.default_timer() - start_time
+
+        """ Output of collected statistics """
+        statistics = (
+            f"{self.image_path.replace('.jpg', f' (out)_{number}.jpg')}\n"
+            f"Resolution: {image_chunk.shape[1]}x{image_chunk.shape[0]}\n"
+            f"Total stars: {stars_count}\n"
+            f"Total planets: {planets_count}\n"
+            f"Total objects: {stars_count + planets_count}\n"
+            f"Processing time: {processing_time:.2f} seconds\n"
+        )
+
+        """ Logging statistics """
+        log_file_path = self.image_path.replace("images", "logs")[:-4] + f"_{number}.log"
+        logger = logging.getLogger(log_file_path)
+        logger.setLevel(logging.DEBUG)
+        file_handler = logging.FileHandler(log_file_path, mode="w")
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        logger.debug(statistics)
+
+    def analyze_cropped_parallel(self) -> None:
+        threads = []
+
+        for i, image_file in enumerate(self.images):
+            thread = threading.Thread(target=self.analyze_cropped, args=(image_file, i + 1))
+            thread.start()
+            threads.append(thread)
+
+        for thread in threads:
+            thread.join()
+
+        cv2.destroyAllWindows()
 
     def analyze(self) -> None:
         """ Grayscale conversion, binarization, and contour search """
@@ -151,7 +223,10 @@ class ImageAnalysisApp:
         start_time = time.time()
         full_path = os.path.normpath(os.path.join(self.input_folder, file))
         image = ImageAnalysis(full_path)
-        image.analyze()
+        if len(image.images) > 1:
+            image.analyze_cropped_parallel()
+        else:
+            image.analyze()
         end_time = time.time()
         image.print_statistics(end_time - start_time)
         self.progress_bar["value"] += 1 / self.images_count * 100
