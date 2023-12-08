@@ -1,0 +1,13 @@
+INFO:root:Bot is run
+INFO:aiogram:Bot: JohnWickovskiBot [@prioritizationbot]
+INFO:aiogram.dispatcher.dispatcher:Start polling.
+INFO:root:Command /start executed by The President
+INFO:root:Command /rates executed by The President
+INFO:root:Command /exchange executed by The President
+INFO:root:Command /weather executed by The President
+INFO:root:Message sent "запоминай историю. Мальчика зовут Влад, ему 12 лет." by The President
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:Message sent "сколько ему лет" by The President
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:aiogram.dispatcher.dispatcher:Stop polling...
+WARNING:aiogram:Goodbye!
