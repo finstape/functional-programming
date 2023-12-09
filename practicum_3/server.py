@@ -48,13 +48,13 @@ class ChatServer:
         try:
             while True:
                 message = await websocket.recv()
-                if message.startswith('/auth'):
+                if message.startswith('ENTER'):
                     username, room_name = message.split(' ')[1:3]
                     await self.join_room(websocket, username, room_name)
-                elif message.startswith('/join'):
+                elif message.startswith('JOIN'):
                     room_name = message.split(' ')[1]
                     await self.join_room(websocket, None, room_name)
-                elif message.startswith('/leave'):
+                elif message.startswith('BACK'):
                     await self.leave_room(websocket, username)
                 else:
                     await self.broadcast(websocket, message, username)
@@ -100,7 +100,7 @@ class ChatServer:
 async def main():
     """Run the chat server."""
     chat_server = ChatServer()
-    async with websockets.serve(chat_server.handle_client, '127.0.0.1', 8080):
+    async with websockets.serve(chat_server.handle_client, '192.168.1.105', 8080):
         await asyncio.Future()
 
 

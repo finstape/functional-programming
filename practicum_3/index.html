@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Server</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+
+    <style>
+        .system {
+            color: green;
+        }
+        .username {
+            color: purple;
+        }
+        #chatBox::-webkit-scrollbar {
+            width: 10px;
+        }
+        #chatBox::-webkit-scrollbar-thumb {
+            background-color: #4d4949;
+            border-radius: 6px;
+        }
+        #chatBox::-webkit-scrollbar-track {
+            background-color: #ccc;
+        }
+        #messageInput {
+            box-sizing: border-box;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none;
+            font-size: 16px;
+            width: calc(100% - 80px);
+            height: 42px;
+        }
+        button {
+            font-family: 'Pacifico', cursive;
+            box-sizing: border-box;
+            background-color: #2f80f2;
+            color: #fff;
+            cursor: pointer;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            width: 80px;
+            height: 42px;
+        }
+        #chatContainer button {
+            margin: 0 auto;
+            display: block;
+            height: 42px;
+        }
+        #authContainer label, #authContainer input, #authContainer button {
+            margin: 10px;
+        }
+        body {
+            font-family: 'Pacifico', cursive;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            transition: background-color 0.3s;
+        }
+        #authContainer {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            transition: box-shadow 0.3s;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 100%;
+        }
+        input {
+            font-family: 'Pacifico', cursive;
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            resize: none;
+        }
+        #messageInput {
+            background-color: #fff;
+        }
+        .dark-theme #messageInput {
+            color: white;
+            background-color: #333;
+        }
+        .dark-theme #roomNameInput {
+            color: white;
+            background-color: #333;
+        }
+        #chatBox {
+            height: 550px;
+            background-color: white;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-y: auto;
+            max-height: 550px;
+            border: 1px solid #ccc;
+        }
+        .dark-theme #chatBox {
+            color: white;
+            background-color: #333;
+        }
+        button:hover {
+            background-color: #4CA2F3;
+        }
+        body.dark-theme {
+            background-color: #1a1a1a;
+            color: #fff;
+        }
+        .container.dark-theme {
+            background-color: #333;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+        }
+        .dark-theme #chatContainer {
+            background-color: #333;
+        }
+        #usernameInput {
+            color: black;
+            background-color: white;
+        }
+        .dark-theme #usernameInput {
+            color: white;
+            background-color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="authContainer">
+        <h1 class="title">Fill out the forms</h1>
+        <br>
+        <input type="text" id="usernameInput" placeholder="Username" oninput="checkInput(this, 'username')">
+        <br>
+        <input type="text" id="roomNameInput" placeholder="Room" oninput="checkInput(this, 'room')">
+        <br>
+        <button onclick="authenticateAndJoin()">Join</button>
+    </div>
+
+    <div class="container" id="chatContainer" style="display: none;">
+        <h1 id="roomTitle" class="title" align="center"></h1>
+        <div id="chatBox"></div>
+        <br>
+        <div style="display: flex;">
+            <button onclick="goBack()">Back</button>
+            <input type="text" id="messageInput" placeholder="Write a message...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <div id="themeSwitchIcon" onclick="toggleDarkMode()" style="position: fixed; top: 10px; right: 10px; cursor: pointer;">
+      🌙
+    </div>
+
+    <label for="themeSwitch" style="display: none;">
+        <input type="checkbox" id="themeSwitch" onchange="toggleDarkMode()">
+    </label>
+
+    <script>
+        const socket = new WebSocket("ws://192.168.1.105:8080");
+        let username;
+        let currentRoom;
+
+        function authenticateAndJoin() {
+            const usernameInput = document.getElementById("usernameInput");
+            const roomNameInput = document.getElementById("roomNameInput");
+
+            username = usernameInput.value.trim();
+            const roomName = roomNameInput.value.trim();
+
+            if (username !== "" && roomName !== "") {
+                if (username.toLowerCase() === "system") {
+                    markInvalidInput(usernameInput);
+                    return;
+                }
+
+                socket.send(`ENTER ${username} ${roomName}`);
+                hideElement("authContainer");
+                showElement("chatContainer");
+                currentRoom = roomName;
+                updateRoomTitle(roomName);
+                clearChatBox();
+            } else {
+                if (username === "") markInvalidInput(usernameInput);
+                if (roomName === "") markInvalidInput(roomNameInput);
+            }
+        }
+
+        function updateRoomTitle(roomName) {
+            document.getElementById("roomTitle").textContent = roomName;
+        }
+
+        function checkInput(input, type) {
+            const value = input.value.trim();
+            const inputElement = document.getElementById(`${type}Input`);
+            if (type === 'username' && value.toLowerCase() === 'system') {
+                markInvalidInput(inputElement);
+            } else {
+                clearInvalidInput(inputElement);
+            }
+        }
+
+        function markInvalidInput(element) {
+            element.style.backgroundColor = "#ff2e2e";
+        }
+
+        function clearInvalidInput(element) {
+            element.style.backgroundColor = "";
+        }
+
+        function hideElement(id) {
+            document.getElementById(id).style.display = "none";
+        }
+
+        function showElement(id) {
+            document.getElementById(id).style.display = "block";
+        }
+
+        socket.onmessage = function (event) {
+            const chatBox = document.getElementById("chatBox");
+            if (typeof(event) == "string") {
+                chatBox.value += event.data + "\n";
+            } else {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.username !== "system") {
+                        formattedMessage = `<span class='username'>${data.username}</span>: ${data.message}`;
+                    } else {
+                        formattedMessage = `<span class='system'>${data.username}</span>: ${data.message}`;
+                    }
+                    chatBox.innerHTML += formattedMessage + "<br>";
+                } catch (error) {}
+            }
+        };
+
+        function goBack() {
+            const leaveCommand = `BACK`;
+            socket.send(leaveCommand);
+            showElement("authContainer");
+            hideElement("chatContainer");
+            clearChatBox();
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById("messageInput");
+            const message = messageInput.value.trim();
+            if (username && message !== "") {
+                const joinCommand = `JOIN ${currentRoom}`;
+                socket.send(joinCommand);
+                socket.send(message);
+                messageInput.value = "";
+            }
+        }
+
+        function clearChatBox() {
+            const chatBox = document.getElementById("chatBox");
+            chatBox.innerHTML = "";
+        }
+
+        function toggleDarkMode() {
+          const body = document.body;
+          const container = document.querySelector('.container');
+
+          // Toggle dark theme class
+          body.classList.toggle('dark-theme');
+          container.classList.toggle('dark-theme');
+
+          // Update the theme switch icon based on the current theme
+          const themeSwitchIcon = document.getElementById('themeSwitchIcon');
+          themeSwitchIcon.innerText = body.classList.contains('dark-theme') ? '☀️' : '🌙';
+        }
+    </script>
+</body>
+</html>
