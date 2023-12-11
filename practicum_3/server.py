@@ -100,7 +100,7 @@ class ChatServer:
 async def main():
     """Run the chat server."""
     chat_server = ChatServer()
-    async with websockets.serve(chat_server.handle_client, '192.168.1.105', 8080):
+    async with websockets.serve(chat_server.handle_client, '127.0.0.1', 8080):
         await asyncio.Future()
 
 
