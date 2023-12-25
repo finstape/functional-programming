@@ -12,27 +12,28 @@ from pymystem3 import Mystem
 from nltk.corpus import stopwords
 import customtkinter as ctk
 from gensim import corpora, models
+from tkinter import filedialog
+from tkinter import messagebox
 
 
 class DataAnalysis:
     """Class for data analysis tasks."""
 
-    def __init__(self):
+    def __init__(self, groups, channels):
         """Initialize DataAnalysis instance."""
         self.vk_data = []
         self.telegram_data = []
         self.processed_texts = []
+        self.channels = channels
+        self.groups = groups
 
         self.mystem = Mystem()
         self.russian_stopwords = set(stopwords.words("russian"))
 
     def get_telegram_data(self) -> None:
         """Retrieve data from Telegram channels."""
-        with open("telegram.txt") as file:
-            channels = [line.strip() for line in file]
-
         with Client(TELEGRAM_PHONE, TELEGRAM_API_ID, TELEGRAM_API_HASH) as client:
-            for channel_id in channels:
+            for channel_id in self.channels:
                 try:
                     channel_info = client.get_chat(channel_id)
                     for post in client.get_chat_history(channel_info.id, limit=100):
@@ -43,10 +44,7 @@ class DataAnalysis:
 
     def get_vk_data(self) -> None:
         """Retrieve data from VK groups."""
-        with open("vk.txt") as file:
-            groups = [line.strip() for line in file]
-
-        for group in groups:
+        for group in self.groups:
             response = requests.get(
                 "https://api.vk.com/method/wall.get",
                 params={
@@ -131,12 +129,18 @@ class Interface:
 
         self.root = root
         self.root.title("Text Analysis App")
-        self.root.geometry("330x100")
+        self.root.geometry("400x200")
 
         self.label = None
         self.label_status = None
         self.process_button = None
         self.analysis_thread = None
+        self.vk_group_file_button = None
+        self.telegram_group_file_button = None
+        self.vk_groups = []
+        self.tg_channels = []
+        self.vk_group_file = None
+        self.telegram_group_file = None
 
         self.create_interface()
 
@@ -152,11 +156,33 @@ class Interface:
         self.process_button.grid(row=1, column=0, padx=10, pady=10)
 
         self.label_status = ctk.CTkLabel(self.root, text="Nothing")
-        self.label_status.grid(row=1, column=1, padx=10, pady=10)
+        self.label_status.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+
+        self.vk_group_file_button = ctk.CTkButton(self.root, text="Select VK", command=self.select_vk_file)
+        self.vk_group_file_button.grid(row=2, column=0, padx=10, pady=10)
+
+        self.telegram_group_file_button = ctk.CTkButton(self.root, text="Select Telegram", command=self.select_telegram_file)
+        self.telegram_group_file_button.grid(row=2, column=1, padx=10, pady=10)
+
+    def select_vk_file(self) -> None:
+        """Open file dialog to select VK Groups file."""
+        self.vk_group_file = filedialog.askopenfilename(title="Select VK Groups File", filetypes=[("Text files", "*.txt")])
+        with open(self.vk_group_file) as file:
+            self.vk_groups = [line.strip() for line in file]
+
+    def select_telegram_file(self) -> None:
+        """Open file dialog to select Telegram Channels file."""
+        self.telegram_group_file = filedialog.askopenfilename(title="Select Telegram Channels File", filetypes=[("Text files", "*.txt")])
+        with open(self.telegram_group_file) as file:
+            self.tg_channels = [line.strip() for line in file]
 
     def start_threading(self) -> None:
         """Start a new thread for data processing."""
         if self.analysis_thread and self.analysis_thread.is_alive():
+            return
+
+        if len(self.vk_groups) == 0 or len(self.tg_channels) == 0:
+            messagebox.showerror("Error", "Please write groups for vk and telegram")
             return
 
         self.analysis_thread = threading.Thread(target=self.start_processing)
@@ -167,7 +193,7 @@ class Interface:
         asyncio.set_event_loop(asyncio.new_event_loop())
 
         self.label_status.configure(text="In process...")
-        dp = DataAnalysis()
+        dp = DataAnalysis(self.vk_groups, self.tg_channels)
         self.label_status.configure(text="Parsing...")
         dp.parallel_parsing()
         self.label_status.configure(text="Preprocessing...")
