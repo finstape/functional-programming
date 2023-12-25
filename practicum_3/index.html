@@ -169,8 +169,8 @@
         <input type="text" id="roomNameInput" placeholder="Room" oninput="checkInput(this, 'room')">
         <br>
         <button onclick="authenticateAndJoin()">Join</button>
+        <div id="roomListContainer"></div>
     </div>
-
     <div class="container" id="chatContainer" style="display: none;">
         <h1 id="roomTitle" class="title" align="center"></h1>
         <div id="chatBox"></div>
@@ -252,21 +252,66 @@
 
         socket.onmessage = function (event) {
             const chatBox = document.getElementById("chatBox");
+            const roomListContainer = document.getElementById("roomListContainer");
             if (typeof(event) == "string") {
                 chatBox.value += event.data + "\n";
             } else {
                 try {
                     const data = JSON.parse(event.data);
 
-                    if (data.username !== "system") {
-                        formattedMessage = `<span class='username'>${data.username}</span>: ${data.message}`;
+                    if (data.rooms_list) {
+                        updateRoomsList(data.rooms_list);
                     } else {
-                        formattedMessage = `<span class='system'>${data.username}</span>: ${data.message}`;
+                        if (data.username !== "system") {
+                            formattedMessage = `<span class='username'>${data.username}</span>: ${data.message}`;
+                        } else {
+                            formattedMessage = `<span class='system'>${data.username}</span>: ${data.message}`;
+                        }
+                        chatBox.innerHTML += formattedMessage + "<br>";
                     }
-                    chatBox.innerHTML += formattedMessage + "<br>";
                 } catch (error) {}
             }
         };
+
+        function updateRoomsList(roomsList) {
+            const roomListContainer = document.getElementById("roomListContainer");
+            roomListContainer.innerHTML = "";
+
+            roomsList.forEach(room => {
+                const roomLink = document.createElement("a");
+                roomLink.href = "#";
+                roomLink.textContent = room;
+
+                roomLink.addEventListener("click", function() {
+                    joinRoomAndNavigate(room);
+                });
+
+                const br = document.createElement("br");
+                roomListContainer.appendChild(roomLink);
+                roomListContainer.appendChild(br);
+            });
+        }
+
+        function joinRoomAndNavigate(roomName) {
+            const joinCommand = `JOIN ${roomName}`;
+            socket.send(joinCommand);
+
+            const usernameInput = document.getElementById("usernameInput");
+            const username = usernameInput.value.trim();
+
+            if (username === "") {
+                markInvalidInput(usernameInput);
+                return;
+            }
+
+
+            hideElement("authContainer");
+            showElement("chatContainer");
+            socket.send(`ENTER ${username} ${roomName}`);
+            currentRoom = roomName;
+            updateRoomTitle(roomName);
+            clearChatBox();
+        }
 
         function goBack() {
             const leaveCommand = `BACK`;
@@ -296,11 +341,9 @@
           const body = document.body;
           const container = document.querySelector('.container');
 
-          // Toggle dark theme class
           body.classList.toggle('dark-theme');
           container.classList.toggle('dark-theme');
 
-          // Update the theme switch icon based on the current theme
           const themeSwitchIcon = document.getElementById('themeSwitchIcon');
           themeSwitchIcon.innerText = body.classList.contains('dark-theme') ? '☀️' : '🌙';
         }

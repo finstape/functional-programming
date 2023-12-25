@@ -41,29 +41,41 @@ class ChatServer:
         self.rooms = {}
         self.clients = set()
 
+    async def get_rooms_list(self):
+        """Get a list of available rooms."""
+        return list(self.rooms.keys())
+
     async def handle_client(self, websocket, path):
         """Handle a new client connection."""
         username = None
 
         try:
+            await self.send_rooms_list(websocket)
             while True:
                 message = await websocket.recv()
                 if message.startswith('ENTER'):
                     username, room_name = message.split(' ')[1:3]
                     await self.join_room(websocket, username, room_name)
+                    await self.send_rooms_list(websocket)
                 elif message.startswith('JOIN'):
                     room_name = message.split(' ')[1]
                     await self.join_room(websocket, None, room_name)
                 elif message.startswith('BACK'):
                     await self.leave_room(websocket, username)
+                    await self.send_rooms_list(websocket)
                 else:
                     await self.broadcast(websocket, message, username)
         except ConnectionClosedError:
             pass
         finally:
             self.clients.remove(websocket)
-            for room in self.rooms.values():
+            for room in self.rooms.keys():
                 room.remove_member(websocket)
+
+    async def send_rooms_list(self, client):
+        """Send the list of available rooms to the client."""
+        rooms_list = await self.get_rooms_list()
+        await client.send(json.dumps({'rooms_list': rooms_list}))
 
     async def broadcast(self, sender, message, username):
         """Broadcast a message to all relevant rooms."""
