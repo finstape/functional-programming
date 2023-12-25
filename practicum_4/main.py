@@ -117,6 +117,12 @@ class DataAnalysis:
         plt.axis("off")
         plt.title("Word Cloud")
         plt.savefig("wordcloud.png")
+
+        word_freq = wordcloud.process_text(processed_texts_combined)
+        with open("word_list.txt", "w", encoding="utf-8") as file:
+            for word, freq in word_freq.items():
+                file.write(f"{word}: {freq}\n")
+
         plt.show()
 
 
