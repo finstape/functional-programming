@@ -14,6 +14,7 @@ import customtkinter as ctk
 from gensim import corpora, models
 from tkinter import filedialog
 from tkinter import messagebox
+from tkinter import scrolledtext
 
 
 class DataAnalysis:
@@ -124,12 +125,15 @@ class Interface:
 
     def __init__(self, root: ctk.CTk):
         """Initialize Interface instance."""
+        self.read_interface_button = None
+        self.telegram_channel_entry = None
+        self.vk_group_entry = None
         ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("blue")
 
         self.root = root
         self.root.title("Text Analysis App")
-        self.root.geometry("400x200")
+        self.root.geometry("800x600")
 
         self.label = None
         self.label_status = None
@@ -163,6 +167,35 @@ class Interface:
 
         self.telegram_group_file_button = ctk.CTkButton(self.root, text="Select Telegram", command=self.select_telegram_file)
         self.telegram_group_file_button.grid(row=2, column=1, padx=10, pady=10)
+
+        self.vk_group_entry = scrolledtext.ScrolledText(self.root, width=40, height=5)
+        self.vk_group_entry.insert(ctk.END, "Write VK groups...")
+        self.vk_group_entry.grid(row=3, column=0, padx=10, pady=10)
+
+        self.telegram_channel_entry = scrolledtext.ScrolledText(self.root, width=40, height=5)
+        self.telegram_channel_entry.insert(ctk.END, "Write Telegram channels...")
+        self.telegram_channel_entry.grid(row=3, column=1, padx=10, pady=10)
+
+        self.read_interface_button = ctk.CTkButton(self.root, text="Read from Interface", command=self.read_from_interface)
+        self.read_interface_button.grid(row=4, column=0, columnspan=2, padx=10, pady=10)
+
+    def read_from_interface(self) -> None:
+        """Read data from the interface and start processing."""
+        vk_group = self.vk_group_entry.get("1.0", ctk.END).strip()
+        tg_channel = self.telegram_channel_entry.get("1.0", ctk.END).strip()
+
+        if not vk_group or vk_group == "Write VK groups...":
+            messagebox.showerror("Error", "Please enter VK group")
+            return
+
+        if not tg_channel or tg_channel == "Write Telegram channels...":
+            messagebox.showerror("Error", "Please enter Telegram channel")
+            return
+
+        self.vk_groups.append(vk_group)
+        self.tg_channels.append(tg_channel)
+
+        self.label_status.configure(text="Groups inserted")
 
     def select_vk_file(self) -> None:
         """Open file dialog to select VK Groups file."""
