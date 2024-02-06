@@ -27,6 +27,8 @@ class DataAnalysis:
         self.processed_texts = []
         self.channels = channels
         self.groups = groups
+        self.vk_data_dict = {group: [] for group in groups}
+        self.telegram_data_dict = {channel: [] for channel in channels}
 
         self.mystem = Mystem()
         self.russian_stopwords = set(stopwords.words("russian"))
@@ -38,8 +40,10 @@ class DataAnalysis:
                 try:
                     channel_info = client.get_chat(channel_id)
                     for post in client.get_chat_history(channel_info.id, limit=100):
+                        print(1111111111111, channel_id, post.caption)
                         if post.caption:
                             self.telegram_data.append(post.caption)
+                            self.telegram_data_dict[channel_id].append(post.caption)
                 except Exception as e:
                     print(f"Error fetching data for channel {channel_id}: {e}")
 
@@ -62,6 +66,7 @@ class DataAnalysis:
                     text_content = item.get("text", "")
                     if text_content:
                         self.vk_data.append(text_content)
+                        self.vk_data_dict[group].append(text_content)
             except Exception as e:
                 print(f"Error processing VK response for group {group}: {e}")
 
@@ -71,12 +76,23 @@ class DataAnalysis:
             for text in self.telegram_data:
                 words = self.mystem.lemmatize(text.lower())
                 self.processed_texts.append(" ".join([word for word in words if word not in self.russian_stopwords and word.isalpha()]))
+            for channel in self.channels:
+                words = self.mystem.lemmatize(self.telegram_data_dict[channel].lower())
+                self.telegram_data_dict[channel] = (" ".join([word for word in words if word not in self.russian_stopwords and word.isalpha()]))
         elif platform == "vk":
             for text in self.vk_data:
                 text_without_links = re.sub(r'\[.*?\]', '', text)
                 text_without_urls = re.sub(r'http\S+', '', text_without_links)
                 words = self.mystem.lemmatize(text_without_urls.lower())
                 self.processed_texts.append(" ".join([word for word in words if
+                                                      word not in self.russian_stopwords and word.isalpha() and word.lower() not in ["канал",
+                                                                                                                                     "который", "это",
+                                                                                                                                     "наш"]]))
+            for group in self.groups:
+                text_without_links = re.sub(r'\[.*?\]', '', self.vk_data_dict[group])
+                text_without_urls = re.sub(r'http\S+', '', text_without_links)
+                words = self.mystem.lemmatize(text_without_urls.lower())
+                self.vk_data_dict[group] = (" ".join([word for word in words if
                                                       word not in self.russian_stopwords and word.isalpha() and word.lower() not in ["канал",
                                                                                                                                      "который", "это",
                                                                                                                                      "наш"]]))
@@ -105,6 +121,33 @@ class DataAnalysis:
         with open("topics.txt", "w", encoding="utf-8") as file:
             for idx, topic in lda_model.print_topics(-1):
                 file.write(f"Topic #{idx}: {topic}\n")
+
+    def analyze_special_topics(self):
+        """Perform topic analysis using LDA in each msg."""
+        vk_topics = []
+        tg_topics = []
+
+        for group, processed_texts in self.vk_data_dict.items():
+            if len(processed_texts) == 0:
+                continue
+            all_words = [text.split() for text in processed_texts]
+            dictionary = corpora.Dictionary(all_words)
+            corpus = [dictionary.doc2bow(words) for words in all_words]
+            lda_model = models.LdaModel(corpus, num_topics=1, id2word=dictionary, passes=15)
+
+            vk_topics.append(f"Group: {group}, Topic: {lda_model.print_topic(0)}")
+
+        for channel, processed_texts in self.telegram_data_dict.items():
+            if len(processed_texts) == 0:
+                continue
+            all_words = [text.split() for text in processed_texts]
+            dictionary = corpora.Dictionary(all_words)
+            corpus = [dictionary.doc2bow(words) for words in all_words]
+            lda_model = models.LdaModel(corpus, num_topics=1, id2word=dictionary, passes=15)
+
+            tg_topics.append(f"Channel: {channel}, Topic: {lda_model.print_topic(0)}")
+
+        return vk_topics, tg_topics
 
     def plot_wordcloud(self) -> None:
         """Generate and plot a word cloud."""
@@ -187,19 +230,19 @@ class Interface:
 
     def read_from_interface(self) -> None:
         """Read data from the interface and start processing."""
-        vk_group = self.vk_group_entry.get("1.0", ctk.END).strip()
-        tg_channel = self.telegram_channel_entry.get("1.0", ctk.END).strip()
+        vk_groups_text = self.vk_group_entry.get("1.0", ctk.END).strip()
+        tg_channels_text = self.telegram_channel_entry.get("1.0", ctk.END).strip()
 
-        if not vk_group or vk_group == "Write VK groups...":
-            messagebox.showerror("Error", "Please enter VK group")
+        self.vk_groups = [group.strip() for group in vk_groups_text.split('\n') if group.strip()]
+        self.tg_channels = [channel.strip() for channel in tg_channels_text.split('\n') if channel.strip()]
+
+        if not self.vk_groups:
+            messagebox.showerror("Error", "Please enter VK groups")
             return
 
-        if not tg_channel or tg_channel == "Write Telegram channels...":
-            messagebox.showerror("Error", "Please enter Telegram channel")
+        if not self.tg_channels:
+            messagebox.showerror("Error", "Please enter Telegram channels")
             return
-
-        self.vk_groups.append(vk_group)
-        self.tg_channels.append(tg_channel)
 
         self.label_status.configure(text="Groups inserted")
 
@@ -227,6 +270,19 @@ class Interface:
         self.analysis_thread = threading.Thread(target=self.start_processing)
         self.analysis_thread.start()
 
+    def show_topics(self, vk_topics, tg_topics) -> None:
+        """Display topics in Tkinter."""
+        vk_topic_text = "\n".join(vk_topics)
+        tg_topic_text = "\n".join(tg_topics)
+
+        vk_text_widget = scrolledtext.ScrolledText(self.root, width=40, height=10)
+        vk_text_widget.insert(ctk.END, vk_topic_text)
+        vk_text_widget.grid(row=5, column=0, padx=10, pady=10)
+
+        tg_text_widget = scrolledtext.ScrolledText(self.root, width=40, height=10)
+        tg_text_widget.insert(ctk.END, tg_topic_text)
+        tg_text_widget.grid(row=5, column=1, padx=10, pady=10)
+
     def start_processing(self) -> None:
         """Start the data processing tasks."""
         asyncio.set_event_loop(asyncio.new_event_loop())
@@ -239,6 +295,9 @@ class Interface:
         dp.parallel_processing()
         self.label_status.configure(text="Analyze topics...")
         dp.analyze_topics()
+        self.label_status.configure(text="Analyze topics (special)...")
+        vk_special_topics, tg_special_topics = dp.analyze_special_topics()
+        self.show_topics(vk_special_topics, tg_special_topics)
         self.label_status.configure(text="Analyze words...")
         dp.plot_wordcloud()
         self.label_status.configure(text="Done!")
